@@ -10,7 +10,7 @@ clean:
 	rm -f a.out
 .PHONY: clean
 
-a.out:	hello.s
+a.out:	parrot.s
 	gcc $< $(GCC_OPTS) -o $@
 
 dis:	a.out
