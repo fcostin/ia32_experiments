@@ -3,6 +3,7 @@ brainfuck -> gnu ia32 assembly compiler.
 """
 
 import sys
+import itertools
 
 PROGRAM_START = r"""
 .globl _start
@@ -91,10 +92,11 @@ def emit(s):
     print s
 
 def compile(s):
+    unique_labels = itertools.count()
     label_stack = []
 
     def begin_while():
-        i = len(label_stack)
+        i = unique_labels.next()
         label_stack.append(i)
         code = BEGIN_WHILE
         code = code.replace('<END_LABEL>', 'end_%d' % i)

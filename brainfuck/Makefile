@@ -8,12 +8,13 @@ all:	a.out
 
 clean:
 	rm -f a.out
+	rm -f hello.s
 .PHONY: clean
 
 a.out:	hello.s
 	gcc $< $(GCC_OPTS) -o $@
 
-hello.s:	hello.brainfuck
+hello.s:	examples/hello.brainfuck
 	python compile.py $< > $@
 
 dis:	a.out
