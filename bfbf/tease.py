@@ -1,5 +1,32 @@
 """
-sketch of brainfuck compiler in brainfuck
+generates code for a brainfuck to gnu ia32 assembly compiler
+the generated code is printed to stdout
+
+rough overview of compiler structure:
+    Treat brainfuck's single pointer as a pointer to top of stack.
+    The stack grows to the right.
+
+    All functions implemented below return strings which are
+    strings of brainfuck opcodes, apart from compiler, which
+    prints the complete program to stdout.
+
+    Functions define words that operate on the stack.
+    The little diagrams above the word definitions denote
+    what the word does to the stack, in the form
+
+        BEFORE STATE -> AFTER STATE
+    
+    The symbol ^ is used to denote the location of the
+    stack pointer in the before and after states. Some
+    of the operations have side effects.
+
+    Each state is represented by a diagram made out of
+    cells, e.g. '(x)(y)(z)'. If the cell contents is '.'
+    then this means 'an arbitrary value'. single
+    character contents e.g. 'x', 'y', 'z' denote
+    named arbitrary values, to indicate how these
+    values are transformed in the state after
+    applying the word to the stack.
 """
 
 from compile import (
@@ -15,6 +42,10 @@ from compile import (
     END_WHILE,
 )
 
+# insert this into generated bf opcodes
+# to trigger display of debugging info
+# when program is interpreted with
+# the brainfuck interpreter
 from bf_interp import DEBUG_CHAR
 
 #	(x) --> (0)
@@ -26,6 +57,9 @@ def clear():
 #    ^       ^
 #   where c is character from stdin (or 0 if EOF)
 #   nb no way to distinguish 0 in file from EOF
+#
+#   side effects:
+#       reads a character from stdin
 def getchar():
     return clear() + ','
 
@@ -59,19 +93,25 @@ def match_char(c):
     n = ord(c)
     return ('-' * n) + logical_not()
 
-#   (.) -> (.)
-#    ^      ^
+#   (.)(.) -> (.)(0)
+#    ^         ^
+#   side effects:
+#       writes the given string to stdout.
+#       the string is encoded into brainfuck opcodes
+#       so we don't need to deal with the hassle of
+#       storing it anywhere. this operation needs
+#       1 cell of working memeory - it uses the cell
+#       to the right of hte current stack pointer.
+#       the contents of this cell are clobbered.
 def put_string(s):
+    # -- XXX note hideously verbose translation to brainfuck code
+    #   to print each character c we execute a stream of
+    #   2 * ord(c) + 1 brainfuck instructions
     # -- TODO improve this. obvious improvement would be
     #   to track the current value of the cell and
     #   to move directly to the next output value
     #   via the shortest sequence of - or + ops
     #   instead of always returning to 0
-
-    # note hideously verbose translation to brainfuck code
-    # -- to print each character c we execute a stream of
-    # 2 * ord(c) + 1 brainfuck instructions, not using
-    # any loops
     body = [('+' * ord(c)) + '.' + ('-' * ord(c)) for c in s]
     return '>' + clear() + ''.join(body) + '<'
 
@@ -82,7 +122,7 @@ def put_string(s):
 def case(c, action):
     return dupe() + match_char(c) + '[' + action + clear() + ']<'
 
-# todo:
+
 # special case statements to handle the '[' and ']' characters.
 # in particular, we need to:
 #   keep track of the next unique label index to use when beginning a while
@@ -99,32 +139,7 @@ def case(c, action):
 #       n : next free unique index for label
 #       m : innermost active index for label
 #       c : the current character being translated
-#
-#   two stack transformations need to be implemented:
-#
-#   (n)(m)('[') --> (n)(m)(c)(n + 1)(n)(ignored_char)
-#          ^                            ^
-#   (n)(m)(c)(o)(p)(']') --> (o)(m)(ignored_char)
-#                    ^              ^
-#   here, ignored_char is any constant value that
-#   is not recognised as a character and parsed
-#   i.e., it is not one of the 8 brainfuck operations,
-#   AND IT IS ALSO NOT THE END OF FILE VALUE 0
-#
-#   each stack transformation also needs a side effect
-#   of emitting the correct code (using n to define
-#   labels on '[', and p to define labels on ']')
-#
-#   basically it would be sufficient to implement
-#   a routine that does a duplicate, but places the
-#   result 3 cells to the right, without touching
-#   clobbering the two cells in between (or indeed
-#   the leftmost 'source' cell), ie want
-#
-#   (a)(b)(c)(.)   ->  (a)(b)(c)(a)
-#             ^                  ^
-#   XXX: this is now implemented as a generalised dupe(gap = 3)
-#   stack operator
+
 
 # (.)(x) -> (.)(0)
 #     ^      ^
@@ -169,6 +184,9 @@ def move_left():
 
 # (x)(y)(z)(m)(n)(c)(1) -> (m)(y)(0)(1)
 #                    ^               ^
+# side effects:
+#   emit code to close loop corresponding
+#   to the unique loop index y
 def end_while():
     # assume END_WHILE has the form:
     #   foo <BEGIN_LABEL> barr <END_LABEL> bazz
