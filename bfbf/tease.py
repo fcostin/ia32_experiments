@@ -2,10 +2,30 @@
 sketch of brainfuck compiler in brainfuck
 """
 
+from compile import (
+    READ_CHAR,
+    WRITE_CHAR,
+    PROGRAM_START,
+    PROGRAM_END,
+    DP_INC,
+    DP_DEC,
+    DP_LEFT,
+    DP_RIGHT,
+)
+
+from bf_interp import DEBUG_CHAR
+
 #	(x) --> (0)
 #	 ^       ^
 def clear():
     return '[-]'
+
+#   (x) --> (c)
+#    ^       ^
+#   where c is character from stdin (or 0 if EOF)
+#   nb no way to distinguish 0 in file from EOF
+def getchar():
+    return clear() + ','
 
 #   for gap = 0 (the default):
 #
@@ -29,7 +49,7 @@ def dupe(gap = 0):
 #   (x) -> (0 if x else 1)
 #    ^          ^
 def logical_not():
-    return '[' + clear() + '-]+'
+    return dupe() + '[<' + clear() + '->' + clear() + ']<+'
 
 #   (x) -> (1 if x == c else 0)
 #    ^      ^
@@ -51,14 +71,14 @@ def put_string(s):
     # 2 * ord(c) + 1 brainfuck instructions, not using
     # any loops
     body = [('+' * ord(c)) + '.' + ('-' * ord(c)) for c in s]
-    return '>' + clear() + body() + '<'
+    return '>' + clear() + ''.join(body) + '<'
 
 # (x)(.) -> (x)
 #  ^         ^
 # side effects:
 #   executes action if x == c
 def case(c, action):
-    return dupe() + match_char(c) + '[' + action + clear() + ']<'
+    return dupe() match_char(c) + '[' + action + clear() + ']<'
 
 # todo:
 # special case statements to handle the '[' and ']' characters.
@@ -105,17 +125,22 @@ def case(c, action):
 #   stack operator
 
 def compiler():
-    put_string(PROGRAM_START)
-    clear()
-    ','
-    '['
-        case('+', put_string(DP_INC))
-        case('-', put_string(DP_DEC))
-        case('<', put_string(DP_LEFT))
-        case('>', put_string(DP_RIGHT))
-        case(',', put_string(READ_CHAR))
-        case('.', put_string(WRITE_CHAR))
-        clear()
-        ','
-    ']'
-    put_string(PROGRAM_END)
+    fragments = (
+        put_string(PROGRAM_START),
+        getchar(),
+        '[',
+        case('+', put_string(DP_INC)),
+        case('-', put_string(DP_DEC)),
+        case('<', put_string(DP_LEFT)),
+        case('>', put_string(DP_RIGHT)),
+        case(',', put_string(READ_CHAR)),
+        case('.', put_string(WRITE_CHAR)),
+        getchar(),
+        ']',
+        put_string(PROGRAM_END),
+    )
+    for s in fragments:
+        print s
+
+if __name__ == '__main__':
+    compiler()
