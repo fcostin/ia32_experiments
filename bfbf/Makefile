@@ -22,7 +22,7 @@ clean:
 	rm -f *.pyc
 .PHONY: clean
 
-bf_compiler.brainfuck:	tease.py
+bf_compiler.brainfuck:	braintease.py
 	python $< > $@
 
 bf_compiler_boot.s:	bf_compiler.brainfuck

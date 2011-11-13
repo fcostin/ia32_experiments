@@ -1,8 +1,11 @@
 """
-generates code for a brainfuck to gnu ia32 assembly compiler
-the generated code is printed to stdout
+braintease.py
 
-rough overview of compiler structure:
+generates code for a brainfuck to gnu ia32 assembly compiler.
+The generated code is then printed to stdout.
+
+Rough overview of this approach:
+
     Treat brainfuck's single pointer as a pointer to top of stack.
     The stack grows to the right.
 
@@ -29,6 +32,8 @@ rough overview of compiler structure:
     applying the word to the stack.
 """
 
+# import strings assembly to emit for the
+# various brainfuck opcodes
 from compile import (
     READ_CHAR,
     WRITE_CHAR,
@@ -42,26 +47,30 @@ from compile import (
     END_WHILE,
 )
 
-# insert this into generated bf opcodes
-# to trigger display of debugging info
-# when program is interpreted with
+# insert this string into generated bf
+# opcodes to trigger display of debugging
+# info when program is interpreted with
 # the brainfuck interpreter
 from bf_interp import DEBUG_CHAR
+
 
 #	(x) --> (0)
 #	 ^       ^
 def clear():
     return '[-]'
 
+
 #   (x) --> (c)
 #    ^       ^
 #   where c is character from stdin (or 0 if EOF)
-#   nb no way to distinguish 0 in file from EOF
+#   nb no way to distinguish receiving a 0 via
+#   stdin from an EOF
 #
 #   side effects:
 #       reads a character from stdin
 def getchar():
     return clear() + ','
+
 
 #   for gap = 0 (the default):
 #
@@ -82,16 +91,19 @@ def dupe(gap = 0):
     restore_source = right_stride + '>>[-<<' + left_stride + '+' + right_stride + '>>]<'
     return init + move_and_duplicate + restore_source
 
+
 #   (x) -> (0 if x else 1)
 #    ^          ^
 def logical_not():
     return dupe() + '[<' + clear() + '->' + clear() + ']<+'
+
 
 #   (x) -> (1 if x == c else 0)
 #    ^      ^
 def match_char(c):
     n = ord(c)
     return ('-' * n) + logical_not()
+
 
 #   (.)(.) -> (.)(0)
 #    ^         ^
@@ -114,6 +126,7 @@ def put_string(s):
     #   instead of always returning to 0
     body = [('+' * ord(c)) + '.' + ('-' * ord(c)) for c in s]
     return '>' + clear() + ''.join(body) + '<'
+
 
 # (x)(.) -> (x)
 #  ^         ^
@@ -147,6 +160,7 @@ def put_label(prefix):
     # XXX TODO encode in less awful fashion than sequence of Ws
     return put_string(prefix) + '[' + put_string('W') + '-]<'
 
+
 # (m)(n)(c)(1) --> (m)(n)(c)(m + 1)(m)(0)(1)
 #           ^                             ^
 # side effects:
@@ -177,10 +191,12 @@ def begin_while():
         '+',
     ])
 
+
 # (x)(y)(z) -> (y)(0)(z)
 #     ^         ^
 def move_left():
     return '<' + clear() + '>[-<+>]<'
+
 
 # (x)(y)(z)(m)(n)(c)(1) -> (m)(y)(0)(1)
 #                    ^               ^
@@ -219,7 +235,11 @@ def end_while():
         #           ^
     ])
 
+
 def compiler():
+    """
+    print opcodes for brainfuck compiler to stdout
+    """
     fragments = (
         put_string(PROGRAM_START),
         clear(), '>', clear(), '>',

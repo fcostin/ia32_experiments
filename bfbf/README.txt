@@ -1,16 +1,17 @@
-beginnings of a self-hosting brainfuck compiler
+a self-hosting brainfuck to gnu ia32 assembly compiler.
 
-currently sketching out the source for the compiler
-in a stack based language implemented out of brainfuck
-implemented as a python script
-
-the idea is to largely express the brainfuck compiler
+The idea is to largely express the brainfuck compiler
 in this stack based language, then expand all the
 definitions of the stack operators in terms of the
 brainfuck (including the huge code blocks to emit
-the gnu ia32 assembly code) into a pure brainfuck
-script.
+strings of gnu ia32 assembly code) into a pure
+brainfuck script.
 
-ISSUES:
-	- nothing has been tested
-	- implementation of [ & ] is missing
+contents:
+	compile.py		:	bf to gnu ia32 assembly compiler, in python
+	bf_interp.py	:	a bf interpreter, in python, to aid debugging of bf programs
+	braintease.py	:	generates bf code for bf to gnu ia32 assembly compiler
+	Makefile		:	bootstraps brainfuck compiler into existence, tests it by compiling hello.brainfuck
+
+
+rfc, 13th nov 2011
