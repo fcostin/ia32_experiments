@@ -11,6 +11,8 @@ from compile import (
     DP_DEC,
     DP_LEFT,
     DP_RIGHT,
+    BEGIN_WHILE,
+    END_WHILE,
 )
 
 from bf_interp import DEBUG_CHAR
@@ -78,7 +80,7 @@ def put_string(s):
 # side effects:
 #   executes action if x == c
 def case(c, action):
-    return dupe() match_char(c) + '[' + action + clear() + ']<'
+    return dupe() + match_char(c) + '[' + action + clear() + ']<'
 
 # todo:
 # special case statements to handle the '[' and ']' characters.
@@ -124,18 +126,96 @@ def case(c, action):
 #   XXX: this is now implemented as a generalised dupe(gap = 3)
 #   stack operator
 
+# (.)(x) -> (.)(0)
+#     ^      ^
+def put_label(prefix):
+    # XXX TODO encode in less awful fashion than sequence of Ws
+    return put_string(prefix) + '[' + put_string('W') + '-]<'
+
+# (m)(n)(c)(1) --> (m)(n)(c)(m + 1)(m)(0)(1)
+#           ^                             ^
+# side effects:
+#   emit code to begin while loop using
+#   labels based on value of m
+def begin_while():
+    # assume BEGIN_WHILE has the form:
+    #   foo <END_LABEL> barr <BEGIN_LABEL> bazz
+    asm_code = BEGIN_WHILE
+    asm_code = asm_code.replace('<END_LABEL>', '#')
+    asm_code = asm_code.replace('<BEGIN_LABEL>', '#')
+    asm_code = asm_code.split('#')
+    assert len(asm_code) == 3
+    
+    return ''.join([
+        '<<<', dupe(gap = 2), dupe(), '<+>',
+        put_string(asm_code[0]),
+        dupe(),
+        put_label('end_'),
+        put_string(asm_code[1]),
+        dupe(),
+        put_label('begin_'),
+        put_string(asm_code[2]),
+        '>',
+        clear(),
+        '>',
+        clear(),
+        '+',
+    ])
+
+# (x)(y)(z) -> (y)(0)(z)
+#     ^         ^
+def move_left():
+    return '<' + clear() + '>[-<+>]<'
+
+# (x)(y)(z)(m)(n)(c)(1) -> (m)(y)(0)(1)
+#                    ^               ^
+def end_while():
+    # assume END_WHILE has the form:
+    #   foo <BEGIN_LABEL> barr <END_LABEL> bazz
+    asm_code = END_WHILE
+    asm_code = asm_code.replace('<END_LABEL>', '#')
+    asm_code = asm_code.replace('<BEGIN_LABEL>', '#')
+    asm_code = asm_code.split('#')
+    assert len(asm_code) == 3
+    return ''.join([
+        clear(),
+        '<',
+        clear(),
+        '<',
+        put_string(asm_code[0]),
+        dupe(),
+        put_label('begin_'),
+        put_string(asm_code[1]),
+        put_label('end_'),
+        put_string(asm_code[2]),
+        # (x)(y)(z)(m)
+        #           ^
+        '<<',
+        dupe(gap = 2),
+        '<',
+        move_left(), move_left(), move_left(),
+        '>>>>',
+        move_left(), move_left(), move_left(),
+        '>>+',
+        # (m)(z)(0)(1)
+        #           ^
+    ])
+
 def compiler():
     fragments = (
         put_string(PROGRAM_START),
+        clear(), '>', clear(), '>',
         getchar(),
         '[',
-        case('+', put_string(DP_INC)),
-        case('-', put_string(DP_DEC)),
-        case('<', put_string(DP_LEFT)),
-        case('>', put_string(DP_RIGHT)),
-        case(',', put_string(READ_CHAR)),
-        case('.', put_string(WRITE_CHAR)),
-        getchar(),
+            case('+', put_string(DP_INC)),
+            case('-', put_string(DP_DEC)),
+            case('<', put_string(DP_LEFT)),
+            case('>', put_string(DP_RIGHT)),
+            case(',', put_string(READ_CHAR)),
+            case('.', put_string(WRITE_CHAR)),
+            case('[', begin_while()),
+            case(']', end_while()),
+            getchar(),
         ']',
         put_string(PROGRAM_END),
     )
