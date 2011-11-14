@@ -117,15 +117,20 @@ def match_char(c):
 #       the contents of this cell are clobbered.
 def put_string(s):
     # -- XXX note hideously verbose translation to brainfuck code
-    #   to print each character c we execute a stream of
-    #   2 * ord(c) + 1 brainfuck instructions
-    # -- TODO improve this. obvious improvement would be
-    #   to track the current value of the cell and
-    #   to move directly to the next output value
-    #   via the shortest sequence of - or + ops
-    #   instead of always returning to 0
-    body = [('+' * ord(c)) + '.' + ('-' * ord(c)) for c in s]
-    return '>' + clear() + ''.join(body) + '<'
+    # -- TODO try to improve this, again
+    chars = map(ord, s)
+    state = 0
+    body = ''
+    for c in chars:
+        delta = c - state
+        if delta > 0:
+            body += ('+' * delta) + '.'
+        elif delta == 0:
+            body += '.'
+        elif delta < 0:
+            body += ('-' * (-delta)) + '.'
+        state = c
+    return '>' + clear() + body + clear() + '<'
 
 
 # (x)(.) -> (x)
