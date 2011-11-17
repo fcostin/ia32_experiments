@@ -1,0 +1,66 @@
+div by 10
+
+pseudocode formulation:
+
+    args:
+        x : non neg
+
+    locals:
+        q : non neg 
+        r : non neg
+
+    body:
+        
+        q = 0
+        r = 0
+        while x > 9:
+            q += 1
+            x -= 10
+        r = x
+        x = 0
+
+stack layout:
+
+    call:
+
+        [x]
+         ^
+
+    init:
+
+        [0][x][1]
+               ^
+
+    upon entry into loop body, after termination test:
+
+        [q][y][1]
+               ^
+
+    upon end of loop body, before termination test:
+
+        case y > 9:
+
+            [q + 1][y - 10][1]
+                            ^
+        
+        case y < 10:
+
+            [q][y][0]
+                   ^
+    return:
+
+        [q][r]
+            ^
+    
+    where q = x / 10
+    r = x % 10
+
+impl details:
+
+    need stack operator 'decrement_if_positive'
+
+    use that to implement the test y > 9
+
+    e.g.
+
+    dupe 9(decrement_if_positive)
