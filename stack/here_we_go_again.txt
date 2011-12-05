@@ -1,0 +1,137 @@
+WHO CARES ABOUT SYNTAX?
+DATA IS SUPERIOR TO SYNTAX
+
+ops:
+	clear(dst!)
+	copy(src,dst!,tmp <=1)
+	move(src,dst!)
+	add_to(src,dst!,tmp <=1)
+	add_constant_to($const, dst!, tmp <= 1)
+	sub_from(src,dst!,tmp <=1)
+	sub_constant_from($const, dst!, tmp <= 1)
+	inc(dst!)
+	dec(dst!)
+	as_logical(src,dst!,tmp <=1)
+	logical_not(src,dst!,tmp <=1)
+	logical_and(a,b,dst!,tmp <=2)
+	logical_or(a,b,dst!,tmp <=2)
+	load_constant[const](dst!)
+
+	args are all location args
+	say, relative to some stack pointer
+	(NOT THE SAME AS BF'S POINTER.
+	BF'S POINTER IS MOVED ABOUT AS IMPLEMENTATION DETAIL)
+
+temp storage is all implicit
+the compiler figures out where to put it
+
+control structures:
+	while(src) { ... }
+		implementation?
+		just directly use [, ] wrt given src
+	if(src) { ... }
+		implementation?
+		copy src into temp
+			this protects the if from being turned into a while during the block body!
+		use [, ] on temp
+		before ] clear temp
+
+
+match($const, src, dst) :=
+	local tmp0
+	copy(src, dst, tmp0)
+	sub_from($const, dst)
+	local tmp1
+	logical_not(dst, tmp0, tmp1)
+	free tmp1
+	move(tmp0, dst)
+	free tmp0
+
+	--- nono no
+	locals should only be allocated in function definitions
+	dont allocate locals for things you are calling (yuck!)
+
+
+
+------------v----------------------
+SET IN STONE*LOCAL STORAGE, ....
+------------^----------------------
+			sp
+
+how to grow the stack by N cells?
+	move ALL locals to the right by N
+		each move requires no temp storage
+		because it is between constant offsets
+	clear the remaining cells
+		each clear requires no temp storage
+		again, constant offsets
+	update the stack pointer (??)
+
+the programmer must insert explicit local allocation and deallocation lines
+into the block of a function definition
+when defining a function that needs locals
+
+
+when compiling
+compiler runs pass over block, inlines all functions
+figures out locations where locals will be stored (just greedily allocate & free)
+
+
+what about pushing / popping some kind of data structure onto the stack?
+	need to make sure local allocation doesnt get in the way
+	locals must never be stored in stack space
+		no i dont think i have this figured out yet
+		outer bf compiler loop has to loop over input characters
+		if input char matches [ or ] then perform serious stack operation
+		if this occurs it occurs IN BETWEEN the local stuffing about
+		of flow control (e.g. if or while blocks).
+		
+		what about if the following two operations are supported?
+			GROW_STACK[n]
+			SHRINK_STACK[n]
+		these promise NOT TO CLOBBER LOCALS
+		when it hits one of these, the compiler makes a manifest of all the
+		local variables currently in play and ensures they all get copied
+		to the correct destination
+
+		make ALL LOCAL STORAGE LOCATIONS RELATIVE TO TOP OF STACK
+
+		so after doing this, just adjust stack pointer, then rest of
+		code never has to know (unless of course it does read / write
+		to locations in the stack proper)
+
+	
+	local unique_name
+	local end_name
+
+	local has_char
+	local char
+	get_char(dest = char)
+	cmp_constant(src = char, constant = EOF, dest = has_char)
+
+	while has_char {
+		local match
+		cmp_constant(src = char, constant = '[', dest = match)
+		if match {
+			GROW_STACK(1) # to the right, to the right
+			copy(src = end_name, dst = STACK[-1])
+			emit_begin_while_code(unique_name)
+			copy(src = unique_name, dst = end_name)
+			inc!(dst = unique_name)
+		}
+		cmp_constant(src = char, constant = ']', dest = match)
+		if match {
+			emit_end_while_code(end_name)
+			copy(src = STACK[-1], dst = end_name)
+			SHRINK_STACK(1) # to the left, to the left
+		}
+		cmp_constant(src = char, constant = '+', dest = match)
+		if match {
+			... etcetera ...
+		}
+
+		get_char(dest = char)
+		cmp_constant(src = char, constant = EOF, dest = has_char)
+	}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
