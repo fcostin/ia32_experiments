@@ -235,13 +235,15 @@ def test_compile_program(builtin_macros, user_macros, entry_point):
             user_macro = instantiate_locals(user_macro, uniquified_names)
         return user_macro
    
-    # Compilation pass Alpha:
+    # Compilation pass 1:
     #   replace local declarations with allocate / destroy pairs
     #   uniquify local variable names
     #   expand all user macro calls inline
+    print 'compiler pass 1: reducing main macro'
     main_program = fully_expand(user_macros[entry_point])
     
-    # Compilation pass Beta:
+    # Compilation pass 2:
     #   translate into brainfuck opcodes
+    print 'compiler pass 2: generating code'
     code = translate_to_brainfuck_opcodes(main_program)
-    return formatted_code(code)
+    return (main_program, formatted_code(code))

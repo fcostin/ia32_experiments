@@ -9,10 +9,7 @@ def_macro('inc_by_one', 'x')(
 
 def_macro('inc_by_seven', 'a')(
     macro('inc_by_one', 'a'),
-    macro('inc_by_one', 'a'),
-    macro('inc_by_one', 'a'),
-    macro('inc_by_one', 'a'),
-    macro('inc_by_one', 'a'),
+    constant_add(constant(4), 'a'),
     macro('inc_by_one', 'a'),
     macro('inc_by_one', 'a'),
 )
@@ -27,10 +24,11 @@ def_macro('main')(
     local('n'),
     get_char('n'),
     constant_sub(char_constant('0'), 'n'),
-    begin_loop('n'),
-    constant_sub(constant(1), 'n'),
-    put_string_constant(string_constant('boogaloo!\n')),
-    end_loop('n'),
+    while_nonzero('n')(
+        constant_sub(constant(1), 'n'),
+        put_string_constant(string_constant('boogaloo!\n')),
+    ),
 )
 
+# start compilation process ...
 debug_dump()
