@@ -331,6 +331,47 @@ def logical_and(machine, src_a, src_b, dst, _tmp0, _tmp1, _tmp2):
     _invoke_macro(machine, 'logical_not', dst, _tmp0, _tmp1)
     _invoke_macro(machine, 'move', _tmp0, dst)
 
+@BUILT_IN_MACRO
+def get_char(machine, dst):
+    a = match_stack_address(dst)
+    machine.do_move_to_stack_address(a)
+    machine.do_read()
+
+@BUILT_IN_MACRO
+def put_char(machine, dst):
+    a = match_stack_address(dst)
+    machine.do_move_to_stack_address(a)
+    machine.do_write()
+
+@BUILT_IN_MACRO
+def put_string_constant(machine, string_constant, _tmp0):
+    s = match_string_constant(string_constant)
+    _invoke_macro(machine, 'clear', _tmp0)
+    chars = map(ord, s)
+    current_char = 0
+    for c in chars:
+        delta_char = c - current_char
+        if delta_char > 0:
+            machine.do_inc(delta_char)
+        elif delta_char == 0:
+            pass
+        elif delta_char < 0:
+            machine.do_dec(-delta_char)
+        machine.do_write()
+        current_char = c
+
+@BUILT_IN_MACRO
+def begin_loop(machine, src):
+    a = match_stack_address(src)
+    machine.do_move_to_stack_address(a)
+    machine.do_begin_loop()
+
+@BUILT_IN_MACRO
+def end_loop(machine, src):
+    a = match_stack_address(src)
+    machine.do_move_to_stack_address(a)
+    machine.do_end_loop()
+
 class StackManager:
     def __init__(self):
         self._occupied_offsets = set()
