@@ -49,7 +49,8 @@ def match_stack_address(x):
     return x[1]
 
 def assert_no_aliasing(*args):
-    assert len(args) == len(list(set(args)))
+    offsets = map(match_stack_address, args)
+    assert len(offsets) == len(list(set(offsets)))
 
 def make_constant(x):
     return ('constant', int(x))
@@ -106,7 +107,8 @@ class Machine:
         self.bf_ptr += offset
         self.validate()
 
-    def do_move_to_stack_address(self, stack_offset):
+    def do_move_to_stack_address(self, stack_address):
+        stack_offset = match_stack_address(stack_address)
         dst_ptr = self.stack_ptr + stack_offset
         offset = dst_ptr - self.bf_ptr
         self.do_move(offset)
@@ -160,10 +162,10 @@ class Machine:
 
 _BUILT_IN_MACROS = {}
 
-def _invoke_macro(machine, macro_name, *args):
+def _invoke_macro(machine, stack_man, macro_name, *args):
     if macro_name not in _BUILT_IN_MACROS:
         raise KeyError('unknown builtin macro : %s' % repr(macro_name))
-    _BUILT_IN_MACROS[macro_name](machine, *args)
+    _BUILT_IN_MACROS[macro_name](machine, stack_man, *args)
 
 def _get_builtin_macro_args(macro_name):
     if macro_name not in _BUILT_IN_MACROS:
@@ -172,7 +174,7 @@ def _get_builtin_macro_args(macro_name):
     formal_args = {}
     temp_args = {}
     for i, name in enumerate(args):
-        if name == 'machine':
+        if name in ('machine', 'stack_man', ):
             pass
         elif name.startswith('_tmp'):
             temp_args[i] = name
@@ -180,173 +182,159 @@ def _get_builtin_macro_args(macro_name):
             formal_args[i] = name
     return (formal_args, temp_args)
 
-def _invoke_macro_auto_temps(machine, alloc_temp, free_temp, macro_name, *args):
+def _invoke_macro_auto_temps(machine, stack_man, macro_name, *args):
     formal_args, temp_args = _get_builtin_macro_args(macro_name)
     assert len(args) == len(formal_args)
-    n_macro_args = len(formal_args) + len(temp_args) + 1
+    n_macro_args = len(formal_args) + len(temp_args) + 2
     macro_args = [None] * n_macro_args
     for i in sorted(temp_args):
-        macro_args[i] = alloc_temp()
+        macro_args[i] = stack_man.allocate_local()
     for j, i in enumerate(sorted(formal_args)):
         macro_args[i] = args[j]
-    _invoke_macro(machine, macro_name, *macro_args[1:])
+    _invoke_macro(machine, stack_man, macro_name, *macro_args[2:])
     for i in sorted(temp_args):
-        free_temp(macro_args[i])
+        stack_man.free_local(macro_args[i])
 
 def BUILT_IN_MACRO(f):
     _BUILT_IN_MACROS[f.__name__] = f
     return f
 
 @BUILT_IN_MACRO
-def clear(machine, dst):
-    a = match_stack_address(dst)
-    machine.do_move_to_stack_address(a)
+def clear(machine, stack_man, dst):
+    machine.do_move_to_stack_address(dst)
     machine.do_begin_loop()
     machine.do_dec()
     machine.do_end_loop()
 
 @BUILT_IN_MACRO
-def destructive_add(machine, src, dst):
-    a = match_stack_address(src)
-    b = match_stack_address(dst)
-    assert_no_aliasing(a, b)
-    machine.do_move_to_stack_address(a)
+def destructive_add(machine, stack_man, src, dst):
+    assert_no_aliasing(src, dst)
+    machine.do_move_to_stack_address(src)
     machine.do_begin_loop()
     machine.do_dec()
-    machine.do_move_to_stack_address(b)
+    machine.do_move_to_stack_address(dst)
     machine.do_inc()
-    machine.do_move_to_stack_address(a)
+    machine.do_move_to_stack_address(src)
     machine.do_end_loop()
 
 @BUILT_IN_MACRO
-def destructive_sub(machine, src, dst):
-    a = match_stack_address(src)
-    b = match_stack_address(dst)
-    assert_no_aliasing(a, b)
-    machine.do_move_to_stack_address(a)
+def destructive_sub(machine, stack_man, src, dst):
+    assert_no_aliasing(src, dst)
+    machine.do_move_to_stack_address(src)
     machine.do_begin_loop()
     machine.do_dec()
-    machine.do_move_to_stack_address(b)
+    machine.do_move_to_stack_address(dst)
     machine.do_dec()
-    machine.do_move_to_stack_address(a)
+    machine.do_move_to_stack_address(src)
     machine.do_end_loop()
 
 @BUILT_IN_MACRO
-def move(machine, src, dst):
-    _invoke_macro(machine, 'clear', dst)
-    _invoke_macro(machine, 'destructive_add', src, dst)
+def move(machine, stack_man, src, dst):
+    _invoke_macro(machine, stack_man, 'clear', dst)
+    _invoke_macro(machine, stack_man, 'destructive_add', src, dst)
 
 @BUILT_IN_MACRO
-def copy(machine, src, dst, _tmp0):
-    a = match_stack_address(src)
-    b = match_stack_address(dst)
-    c = match_stack_address(_tmp0)
-    assert_no_aliasing(a, b, c)
-    _invoke_macro(machine, 'clear', dst)
-    _invoke_macro(machine, 'clear', _tmp0)
-    machine.do_move_to_stack_address(a)
+def copy(machine, stack_man, src, dst):
+    _tmp0 = stack_man.allocate_local()
+    assert_no_aliasing(src, dst, _tmp0)
+    _invoke_macro(machine, stack_man, 'clear', dst)
+    _invoke_macro(machine, stack_man, 'clear', _tmp0)
+    machine.do_move_to_stack_address(src)
     machine.do_begin_loop()
     machine.do_dec()
-    machine.do_move_to_stack_address(b)
+    machine.do_move_to_stack_address(dst)
     machine.do_inc()
-    machine.do_move_to_stack_address(c)
+    machine.do_move_to_stack_address(_tmp0)
     machine.do_inc()
-    machine.do_move_to_stack_address(a)
+    machine.do_move_to_stack_address(src)
     machine.do_end_loop()
-    _invoke_macro(machine, 'destructive_add', _tmp0, src)
+    _invoke_macro(machine, stack_man, 'destructive_add', _tmp0, src)
+    stack_man.free_local(_tmp0)
 
 @BUILT_IN_MACRO
-def stack_add(machine, src, dst, _tmp0, _tmp1):
-    _invoke_macro(machine, 'copy', src, _tmp0, _tmp1)
-    _invoke_macro(machine, 'destructive_add', _tmp0, dst)
+def stack_add(machine, stack_man, src, dst, _tmp0):
+    _invoke_macro(machine, stack_man, 'copy', src, _tmp0)
+    _invoke_macro(machine, stack_man, 'destructive_add', _tmp0, dst)
 
 @BUILT_IN_MACRO
-def constant_add(machine, src, dst):
+def constant_add(machine, stack_man, src, dst):
     a = match_constant(src)
-    b = match_stack_address(dst)
-    machine.do_move_to_stack_address(b)
+    machine.do_move_to_stack_address(dst)
     machine.do_inc(a)
 
 @BUILT_IN_MACRO
-def stack_sub(machine, src, dst, _tmp0, _tmp1):
-    _invoke_macro(machine, 'copy', src, _tmp0, _tmp1)
-    _invoke_macro(machine, 'destructive_sub', _tmp0, dst)
+def stack_sub(machine, stack_man, src, dst, _tmp0):
+    _invoke_macro(machine, stack_man, 'copy', src, _tmp0)
+    _invoke_macro(machine, stack_man, 'destructive_sub', _tmp0, dst)
 
 @BUILT_IN_MACRO
-def constant_sub(machine, src, dst):
+def constant_sub(machine, stack_man, src, dst):
     a = match_constant(src)
-    b = match_stack_address(dst)
-    machine.do_move_to_stack_address(b)
+    machine.do_move_to_stack_address(dst)
     machine.do_dec(a)
 
 @BUILT_IN_MACRO
-def as_logical(machine, src, dst, _tmp0):
-    a = match_stack_address(src)
-    b = match_stack_address(dst)
-    c = match_stack_address(_tmp0)
-    assert_no_aliasing(a, b, c)
-    _invoke_macro(machine, 'copy', src, _tmp0, dst)
-    machine.do_move_to_stack_address(c)
+def as_logical(machine, stack_man, src, dst, _tmp0):
+    assert_no_aliasing(src, dst, _tmp0)
+    _invoke_macro(machine, stack_man, 'copy', src, _tmp0)
+    _invoke_macro(machine, stack_man, 'clear', dst)
+    machine.do_move_to_stack_address(_tmp0)
     machine.do_begin_loop()
-    machine.do_move_to_stack_address(b)
+    machine.do_move_to_stack_address(dst)
     machine.do_inc()
-    _invoke_macro(machine, 'clear', _tmp0)
+    _invoke_macro(machine, stack_man, 'clear', _tmp0)
     machine.do_end_loop()
 
 @BUILT_IN_MACRO
-def logical_not(machine, src, dst, _tmp0):
-    a = match_stack_address(src)
-    b = match_stack_address(dst)
-    c = match_stack_address(_tmp0)
-    assert_no_aliasing(a, b, c)
-    _invoke_macro(machine, 'copy', src, _tmp0, dst)
-    machine.do_move_to_stack_address(b)
+def logical_not(machine, stack_man, src, dst, _tmp0):
+    assert_no_aliasing(src, dst, _tmp0)
+    _invoke_macro(machine, stack_man, 'copy', src, _tmp0)
+    _invoke_macro(machine, stack_man, 'clear', dst)
+    machine.do_move_to_stack_address(dst)
     machine.do_inc()
-    machine.do_move_to_stack_address(c)
+    machine.do_move_to_stack_address(_tmp0)
     machine.do_begin_loop()
-    machine.do_move_to_stack_address(b)
+    machine.do_move_to_stack_address(dst)
     machine.do_dec()
-    _invoke_macro(machine, 'clear', _tmp0)
+    _invoke_macro(machine, stack_man, 'clear', _tmp0)
     machine.do_end_loop()
 
 @BUILT_IN_MACRO
-def logical_or(machine, src_a, src_b, dst, _tmp0, _tmp1, _tmp2):
+def logical_or(machine, stack_man, src_a, src_b, dst, _tmp0, _tmp1, _tmp2):
     # much stuffing about to ensure we leave src_a, src_b untouched
     # but we operate on their 'as_logical' values
-    _invoke_macro(machine, 'clear', dst)
-    _invoke_macro(machine, 'as_logical', src_a, _tmp0, _tmp1)
-    _invoke_macro(machine, 'stack_add', src_a, dst, _tmp1, _tmp2)
-    _invoke_macro(machine, 'as_logical', src_b, _tmp0, _tmp1)
-    _invoke_macro(machine, 'stack_add', src_b, dst, _tmp1, _tmp2)
-    _invoke_macro(machine, 'as_logical', dst, _tmp0, _tmp1)
-    _invoke_macro(machine, 'move', _tmp0, dst)
+    _invoke_macro(machine, stack_man, 'clear', dst)
+    _invoke_macro(machine, stack_man, 'as_logical', src_a, _tmp0, _tmp1)
+    _invoke_macro(machine, stack_man, 'stack_add', src_a, dst, _tmp1, _tmp2)
+    _invoke_macro(machine, stack_man, 'as_logical', src_b, _tmp0, _tmp1)
+    _invoke_macro(machine, stack_man, 'stack_add', src_b, dst, _tmp1, _tmp2)
+    _invoke_macro(machine, stack_man, 'as_logical', dst, _tmp0, _tmp1)
+    _invoke_macro(machine, stack_man, 'move', _tmp0, dst)
 
 @BUILT_IN_MACRO
-def logical_and(machine, src_a, src_b, dst, _tmp0, _tmp1, _tmp2):
-    _invoke_macro(machine, 'clear', dst)
-    _invoke_macro(machine, 'logical_not', src_a, _tmp0, _tmp1)
-    _invoke_macro(machine, 'stack_add', src_a, dst, _tmp1, _tmp2)
-    _invoke_macro(machine, 'logical_not', src_b, _tmp0, _tmp1)
-    _invoke_macro(machine, 'stack_add', src_b, dst, _tmp1, _tmp2)
-    _invoke_macro(machine, 'logical_not', dst, _tmp0, _tmp1)
-    _invoke_macro(machine, 'move', _tmp0, dst)
+def logical_and(machine, stack_man, src_a, src_b, dst, _tmp0, _tmp1, _tmp2):
+    _invoke_macro(machine, stack_man, 'clear', dst)
+    _invoke_macro(machine, stack_man, 'logical_not', src_a, _tmp0, _tmp1)
+    _invoke_macro(machine, stack_man, 'stack_add', src_a, dst, _tmp1, _tmp2)
+    _invoke_macro(machine, stack_man, 'logical_not', src_b, _tmp0, _tmp1)
+    _invoke_macro(machine, stack_man, 'stack_add', src_b, dst, _tmp1, _tmp2)
+    _invoke_macro(machine, stack_man, 'logical_not', dst, _tmp0, _tmp1)
+    _invoke_macro(machine, stack_man, 'move', _tmp0, dst)
 
 @BUILT_IN_MACRO
-def get_char(machine, dst):
-    a = match_stack_address(dst)
-    machine.do_move_to_stack_address(a)
+def get_char(machine, stack_man, dst):
+    machine.do_move_to_stack_address(dst)
     machine.do_read()
 
 @BUILT_IN_MACRO
-def put_char(machine, dst):
-    a = match_stack_address(dst)
-    machine.do_move_to_stack_address(a)
+def put_char(machine, stack_man, dst):
+    machine.do_move_to_stack_address(dst)
     machine.do_write()
 
 @BUILT_IN_MACRO
-def put_string_constant(machine, string_constant, _tmp0):
+def put_string_constant(machine, stack_man, string_constant, _tmp0):
     s = match_string_constant(string_constant)
-    _invoke_macro(machine, 'clear', _tmp0)
+    _invoke_macro(machine, stack_man, 'clear', _tmp0)
     chars = map(ord, s)
     current_char = 0
     for c in chars:
@@ -361,15 +349,13 @@ def put_string_constant(machine, string_constant, _tmp0):
         current_char = c
 
 @BUILT_IN_MACRO
-def begin_loop(machine, src):
-    a = match_stack_address(src)
-    machine.do_move_to_stack_address(a)
+def begin_loop(machine, stack_man, src):
+    machine.do_move_to_stack_address(src)
     machine.do_begin_loop()
 
 @BUILT_IN_MACRO
-def end_loop(machine, src):
-    a = match_stack_address(src)
-    machine.do_move_to_stack_address(a)
+def end_loop(machine, stack_man, src):
+    machine.do_move_to_stack_address(src)
     machine.do_end_loop()
 
 class StackManager:
@@ -398,14 +384,16 @@ def test():
     print str(res)
 
     print 'Test {clear stack 5, clear stack 3}'
+    stack_man = StackManager()
     dst_a = ('stack_address', 5)
     dst_b = ('stack_address', 3)
     machine = Machine(n_cells = 10)
-    _invoke_macro(machine, 'clear', dst_a)
-    _invoke_macro(machine, 'clear', dst_b)
+    _invoke_macro(machine, stack_man, 'clear', dst_a)
+    _invoke_macro(machine, stack_man, 'clear', dst_b)
     machine.dump_code()
 
     print 'Test {c = logical_or(a, b)} with manual temp management'
+    stack_man = StackManager()
     var_a = ('stack_address', 0)
     var_b = ('stack_address', 1)
     var_c = ('stack_address', 2)
@@ -413,7 +401,7 @@ def test():
     var_tmp1 = ('stack_address', 4)
     var_tmp2 = ('stack_address', 5)
     machine = Machine(n_cells = 10)
-    _invoke_macro(machine, 'logical_or', var_a, var_b, var_c, var_tmp0, var_tmp1, var_tmp2)
+    _invoke_macro(machine, stack_man, 'logical_or', var_a, var_b, var_c, var_tmp0, var_tmp1, var_tmp2)
     machine.dump_code()
 
     print 'Test {c = logical_and(a, b)} with automatic temp management'
@@ -422,8 +410,7 @@ def test():
     var_b = stack_man.allocate_local()
     var_c = stack_man.allocate_local()
     machine = Machine(n_cells = 10)
-    _invoke_macro_auto_temps(machine, stack_man.allocate_local,
-        stack_man.free_local, 'logical_and', var_a, var_b, var_c)
+    _invoke_macro_auto_temps(machine, stack_man, 'logical_and', var_a, var_b, var_c)
     machine.dump_code()
 
 

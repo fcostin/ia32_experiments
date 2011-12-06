@@ -200,8 +200,7 @@ def translate_to_brainfuck_opcodes(main_program):
                     allocated_args.append(allocated_vars[var_name])
                 else:
                     allocated_args.append(arg)
-            codegen._invoke_macro_auto_temps(machine, stack_man.allocate_local,
-                stack_man.free_local, macro_name, *allocated_args)
+            codegen._invoke_macro_auto_temps(machine, stack_man, macro_name, *allocated_args)
         else:
             raise ValueError('unexpected expr type')
     return machine.code
