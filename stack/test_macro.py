@@ -3,7 +3,10 @@
 from prelude import *
 
 def_macro('inc_by_one', 'x')(
-    local('unused'),
+    local('dummy'),
+    local('another_dummy'),
+    copy('x', 'another_dummy'),
+    copy('x', 'dummy'),
     constant_add(constant(1), 'x'),
 )
 
