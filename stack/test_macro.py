@@ -30,6 +30,11 @@ def_macro('main')(
     while_nonzero('n')(
         constant_sub(constant(1), 'n'),
         put_string_constant(string_constant('boogaloo!\n')),
+        grow_stack(constant(1)),
+        local('z'),
+        copy(stack_address(-1), 'z'),
+        constant_add(char_constant('0'), 'z'),
+        put_char('z'),
     ),
 )
 
