@@ -67,6 +67,25 @@ def while_nonzero(x):
             _BUILT_IN_MACRO_CALL_CAPTURERS['end_loop'](x))
     return capture_while_body
 
+def if_nonzero(x):
+    # syntactic sugar for begin / end if block
+    # XXX TODO THIS IS BUGGY WILL CAUSE NAME COLLISIONS
+    # WITH PERVERSELY-NAMED USER VARIABLES
+    # XXX TODO GUT THIS AND FIX IT
+    mangled = lambda s : '__if_tmp_%s' % str(s)
+    t = mangled(x)
+    def capture_if_body(*body):
+        flattened_body = sum(map(list, body), [])
+        body_prime = (
+            _BUILT_IN_MACRO_CALL_CAPTURERS['local'](t) +
+            _BUILT_IN_MACRO_CALL_CAPTURERS['copy'](x, t) +
+            _BUILT_IN_MACRO_CALL_CAPTURERS['begin_loop'](t) +
+            flattened_body +
+            _BUILT_IN_MACRO_CALL_CAPTURERS['clear'](t) +
+            _BUILT_IN_MACRO_CALL_CAPTURERS['end_loop'](t)
+        )
+        return body_prime
+    return capture_if_body
 
 def debug_dump_user_macro(user_macro):
     _, key, args, body = user_macro
