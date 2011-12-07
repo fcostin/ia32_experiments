@@ -36,6 +36,18 @@ def_macro('main')(
         constant_add(char_constant('0'), 'z'),
         put_char('z'),
     ),
+    put_string_constant(string_constant('enter "a" if you like:\n')),
+    local('maybe_a'),
+    get_char('maybe_a'),
+    constant_sub(char_constant('a'), 'maybe_a'),
+    local('t'),
+    logical_not('maybe_a', 't'),
+    if_nonzero('t')(
+        put_string_constant(string_constant('\nyup, that was an "a"\n')),
+    ),
+    if_nonzero('maybe_a')(
+        put_string_constant(string_constant('\nno "a" today eh?\n')),
+    ),
 )
 
 # start compilation process ...
