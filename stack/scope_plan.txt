@@ -1,0 +1,71 @@
+***
+what: thinkplans how to decorate code with scopes to make translation cleaner
+
+it would remove need for name mangling / unique names
+which would make things cleaner (e.g. implementing if)
+***
+
+
+scopes:
+
+    environment structure:
+        dict of names -> values
+        parent scope
+
+
+begin_scope
+end_scope
+
+translation examples:
+
+macro
+    body
+
+    ->>
+
+    macro
+        begin_scope
+            body
+        end_scope
+
+
+if_nonzero(foo)
+    body
+
+    ->>
+
+    begin_scope
+        local(if_condition)
+        copy(foo, if_condition)
+        begin_loop(if_condition)
+            begin_scope
+                body
+            end_scope
+            clear(if_condition)
+        end_loop(if_condition)
+    end_scope
+
+while_nonzero(foo)
+    block
+
+    ->>
+
+    begin_scope
+        begin_loop(foo)
+            begin_scope
+                body
+            end_scope
+        end_loop(foo)
+    end_scope
+
+
+
+tasks prelude is currently doing
+    1. while_nonzero expansion into begin / end pairs
+
+tasks the macro compiler is currently doing
+    1. augmenting local declarations with alloc / delete pairs (inside user macro)
+    2. replacing local names with unique names
+    3. replacing macro arguments with values
+    4. expanding user macro calls
+
