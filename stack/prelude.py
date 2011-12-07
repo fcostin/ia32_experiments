@@ -53,6 +53,11 @@ def char_constant(x):
 def string_constant(x):
     return ('string_constant', str(x))
 
+def stack_address(x):
+    if x >= 0:
+        raise ValueError('stack address must be negative (otherwise it will clobber locals)')
+    return ('stack_address', int(x))
+
 def while_nonzero(x):
     # syntactic sugar for begin loop / end loop
     def capture_while_body(*body):

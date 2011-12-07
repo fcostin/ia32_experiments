@@ -97,6 +97,9 @@ class Machine:
     def validate(self):
         assert 0 <= self.bf_ptr < self.n_cells
 
+    def get_bf_ptr_relative_to_stack(self):
+        return self.bf_ptr - self.stack_ptr
+
     def do_move(self, offset):
         if offset == 0:
             pass
@@ -133,14 +136,14 @@ class Machine:
 
     def do_begin_loop(self):
         self.code.append('[')
-        self.loop_stack.append(self.bf_ptr)
+        self.loop_stack.append(self.get_bf_ptr_relative_to_stack())
         self.validate()
 
     def do_end_loop(self):
         self.code.append(']')
         # invariant : bf_ptr must have the same value
         # after [x] for all executation paths
-        assert self.loop_stack.pop() == self.bf_ptr
+        assert self.loop_stack.pop() == self.get_bf_ptr_relative_to_stack()
         self.validate()
 
     def do_read(self):
@@ -155,7 +158,7 @@ class Machine:
         known_opcodes = '<>+-[].,'
         for c in bf_opcodes:
             assert c in known_opcodes
-        self.code.append(raw_bf_opcodes)
+        self.code.append(bf_opcodes)
 
     def dump_code(self):
         print ''.join(self.code)
@@ -252,9 +255,11 @@ def copy(machine, stack_man, src, dst):
     stack_man.free_local(_tmp0)
 
 @BUILT_IN_MACRO
-def stack_add(machine, stack_man, src, dst, _tmp0):
+def stack_add(machine, stack_man, src, dst):
+    _tmp0 = stack_man.allocate_local()
     _invoke_macro(machine, stack_man, 'copy', src, _tmp0)
     _invoke_macro(machine, stack_man, 'destructive_add', _tmp0, dst)
+    stack_man.free_local(_tmp0)
 
 @BUILT_IN_MACRO
 def constant_add(machine, stack_man, src, dst):
@@ -263,9 +268,11 @@ def constant_add(machine, stack_man, src, dst):
     machine.do_inc(a)
 
 @BUILT_IN_MACRO
-def stack_sub(machine, stack_man, src, dst, _tmp0):
+def stack_sub(machine, stack_man, src, dst):
+    _tmp0 = stack_man.allocate_local()
     _invoke_macro(machine, stack_man, 'copy', src, _tmp0)
     _invoke_macro(machine, stack_man, 'destructive_sub', _tmp0, dst)
+    stack_man.free_local(_tmp0)
 
 @BUILT_IN_MACRO
 def constant_sub(machine, stack_man, src, dst):
@@ -274,7 +281,8 @@ def constant_sub(machine, stack_man, src, dst):
     machine.do_dec(a)
 
 @BUILT_IN_MACRO
-def as_logical(machine, stack_man, src, dst, _tmp0):
+def as_logical(machine, stack_man, src, dst):
+    _tmp0 = stack_man.allocate_local()
     assert_no_aliasing(src, dst, _tmp0)
     _invoke_macro(machine, stack_man, 'copy', src, _tmp0)
     _invoke_macro(machine, stack_man, 'clear', dst)
@@ -284,9 +292,11 @@ def as_logical(machine, stack_man, src, dst, _tmp0):
     machine.do_inc()
     _invoke_macro(machine, stack_man, 'clear', _tmp0)
     machine.do_end_loop()
+    stack_man.free_local(_tmp0)
 
 @BUILT_IN_MACRO
-def logical_not(machine, stack_man, src, dst, _tmp0):
+def logical_not(machine, stack_man, src, dst):
+    _tmp0 = stack_man.allocate_local()
     assert_no_aliasing(src, dst, _tmp0)
     _invoke_macro(machine, stack_man, 'copy', src, _tmp0)
     _invoke_macro(machine, stack_man, 'clear', dst)
@@ -298,28 +308,33 @@ def logical_not(machine, stack_man, src, dst, _tmp0):
     machine.do_dec()
     _invoke_macro(machine, stack_man, 'clear', _tmp0)
     machine.do_end_loop()
+    stack_man.free_local(_tmp0)
 
 @BUILT_IN_MACRO
-def logical_or(machine, stack_man, src_a, src_b, dst, _tmp0, _tmp1, _tmp2):
+def logical_or(machine, stack_man, src_a, src_b, dst):
     # much stuffing about to ensure we leave src_a, src_b untouched
     # but we operate on their 'as_logical' values
+    _tmp0 = stack_man.allocate_local()
     _invoke_macro(machine, stack_man, 'clear', dst)
-    _invoke_macro(machine, stack_man, 'as_logical', src_a, _tmp0, _tmp1)
-    _invoke_macro(machine, stack_man, 'stack_add', src_a, dst, _tmp1, _tmp2)
-    _invoke_macro(machine, stack_man, 'as_logical', src_b, _tmp0, _tmp1)
-    _invoke_macro(machine, stack_man, 'stack_add', src_b, dst, _tmp1, _tmp2)
-    _invoke_macro(machine, stack_man, 'as_logical', dst, _tmp0, _tmp1)
+    _invoke_macro(machine, stack_man, 'as_logical', src_a, _tmp0)
+    _invoke_macro(machine, stack_man, 'stack_add', src_a, dst)
+    _invoke_macro(machine, stack_man, 'as_logical', src_b, _tmp0)
+    _invoke_macro(machine, stack_man, 'stack_add', src_b, dst)
+    _invoke_macro(machine, stack_man, 'as_logical', dst, _tmp0)
     _invoke_macro(machine, stack_man, 'move', _tmp0, dst)
+    stack_man.free_local(_tmp0)
 
 @BUILT_IN_MACRO
-def logical_and(machine, stack_man, src_a, src_b, dst, _tmp0, _tmp1, _tmp2):
+def logical_and(machine, stack_man, src_a, src_b, dst):
+    _tmp0 = stack_man.allocate_local()
     _invoke_macro(machine, stack_man, 'clear', dst)
-    _invoke_macro(machine, stack_man, 'logical_not', src_a, _tmp0, _tmp1)
-    _invoke_macro(machine, stack_man, 'stack_add', src_a, dst, _tmp1, _tmp2)
-    _invoke_macro(machine, stack_man, 'logical_not', src_b, _tmp0, _tmp1)
-    _invoke_macro(machine, stack_man, 'stack_add', src_b, dst, _tmp1, _tmp2)
-    _invoke_macro(machine, stack_man, 'logical_not', dst, _tmp0, _tmp1)
+    _invoke_macro(machine, stack_man, 'logical_not', src_a, _tmp0)
+    _invoke_macro(machine, stack_man, 'stack_add', src_a, dst)
+    _invoke_macro(machine, stack_man, 'logical_not', src_b, _tmp0)
+    _invoke_macro(machine, stack_man, 'stack_add', src_b, dst)
+    _invoke_macro(machine, stack_man, 'logical_not', dst, _tmp0)
     _invoke_macro(machine, stack_man, 'move', _tmp0, dst)
+    stack_man.free_local(_tmp0)
 
 @BUILT_IN_MACRO
 def get_char(machine, stack_man, dst):
@@ -332,8 +347,9 @@ def put_char(machine, stack_man, dst):
     machine.do_write()
 
 @BUILT_IN_MACRO
-def put_string_constant(machine, stack_man, string_constant, _tmp0):
+def put_string_constant(machine, stack_man, string_constant):
     s = match_string_constant(string_constant)
+    _tmp0 = stack_man.allocate_local()
     _invoke_macro(machine, stack_man, 'clear', _tmp0)
     chars = map(ord, s)
     current_char = 0
@@ -347,6 +363,7 @@ def put_string_constant(machine, stack_man, string_constant, _tmp0):
             machine.do_dec(-delta_char)
         machine.do_write()
         current_char = c
+    stack_man.free_local(_tmp0)
 
 @BUILT_IN_MACRO
 def begin_loop(machine, stack_man, src):
@@ -357,6 +374,36 @@ def begin_loop(machine, stack_man, src):
 def end_loop(machine, stack_man, src):
     machine.do_move_to_stack_address(src)
     machine.do_end_loop()
+
+@BUILT_IN_MACRO
+def grow_stack(machine, stack_man, size):
+    n = match_constant(size)
+    assert n >= 0
+    if n == 0:
+        return
+    offsets = stack_man.occupied_offsets()
+    for x in reversed(offsets):
+        src = make_stack_address(x)
+        dst = make_stack_address(x + n)
+        _invoke_macro(machine, stack_man, 'move', src, dst)
+    for x in xrange(n):
+        src = make_stack_address(x)
+        _invoke_macro(machine, stack_man, 'clear', src)
+    machine.stack_ptr += n
+
+@BUILT_IN_MACRO
+def shrink_stack(machine, stack_man, size):
+    n = match_constant(size)
+    assert n >= 0
+    if n == 0:
+        return
+    offsets = stack_man.occupied_offsets()
+    for x in offsets:
+        src = make_stack_address(x)
+        dst = make_stack_address(x - n)
+        _invoke_macro(machine, stack_man, 'move', src, dst)
+    machine.stack_ptr -= n
+
 
 class StackManager:
     def __init__(self):
@@ -377,6 +424,9 @@ class StackManager:
         offset = match_stack_address(stack_address)
         assert offset in self._occupied_offsets
         self._occupied_offsets.remove(offset)
+    
+    def occupied_offsets(self):
+        return list(sorted(list(self._occupied_offsets)))
 
 def test():
     print 'Test macro argument extraction:'
