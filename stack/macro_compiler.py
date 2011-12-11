@@ -47,7 +47,8 @@ def get_user_macro_locals(user_macro):
     for expr in body:
         if is_local_declaration(expr):
             local_name = match_local_declaration(expr)
-            assert local_name not in macro_locals
+            if local_name in macro_locals:
+                raise ValueError('illegal repeat local declaration "%s"' % str(local_name))
             macro_locals.append(local_name)
     return macro_locals
 
