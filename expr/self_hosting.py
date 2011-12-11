@@ -1,5 +1,20 @@
 from prelude import *
 
+DEF_MACRO('counter_init', 'x0', 'x1')(
+   CLEAR('x0'),
+   CLEAR('x1'),
+)
+
+DEF_MACRO('counter_inc', 'x0', 'x1')(
+    CONSTANT_ADD(INT_CONSTANT(1), 'x0'),
+    LOCAL('test'),
+    LOGICAL_NOT('x0', 'test'),
+    IF('test')(
+        CLEAR('x0'),
+        CONSTANT_ADD(INT_CONSTANT(1), 'x1'),
+    )
+)
+
 DEF_MACRO('update_input', 'c')(
     CLEAR('c'),
     GET_CHAR('c'),
