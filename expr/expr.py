@@ -14,32 +14,6 @@ def expr_print(expr, indent = 0):
             expr_print(x, indent + 1)
 
 
-def expr_map_literals(f, expr, prefix = None):
-    """
-    replace expr with expr_prime, where
-    each literal L(x) in expr is replaced with
-    f(x, prefix), where prefix is the list of
-    expression tags along the path from the
-    expression root to the literal L(x)
-    """
-    if prefix is None:
-        prefix = []
-    m = pm.match(L(pm.Star('x'))).attempt_match(expr)
-    if m is not None:
-        return f(m['x'], prefix)
-    else:
-        m = pm.match(pm.Cons(pm.Star('head'), pm.Star('tail'))).attempt_match(expr)
-        assert m is not None
-        mapped_tail = []
-        for x in m['tail']:
-            mapped_tail.append(expr_map_literals(f, x, prefix + [m['head']]))
-        return tuple([m['head']] + mapped_tail)
-
-
-def identity(x):
-    return x
-
-
 def match_user_macro_body(f):
     return pm.match(
         ('user_macro', pm.Star('name'), pm.Star('params'),
@@ -84,9 +58,11 @@ def allocate_locals_rule(name, params, statements):
 def expand_while_block_rule(name, params, statements):
     def rewrite_while_block(x, statements):
         return tuple(
-            [BEGIN_LOOP(x)] +
+            [('env_begin', ),
+            BEGIN_LOOP(x)] +
             statements +
-            [END_LOOP(x)]
+            [END_LOOP(x),
+            ('env_end', )]
         )
     f = (pm.match(
             (('while', ARGS(pm.Star('x')), pm.Cons('body', pm.Star('statements'))), )
@@ -96,9 +72,12 @@ def expand_while_block_rule(name, params, statements):
         statements_prime += list(f([expr]))
     return ('user_macro', name, params, BODY(*statements_prime))
 
+
 @match_user_macro_body
 def expand_if_block_rule(name, params, statements):
     def rewrite_if_block(x, statements):
+        # use HIDDEN variable so it has distinct name from user variables
+        # also, note that the if block is wrapped in its own scope.
         t = HIDDEN('if_tmp')
         return tuple(
             [('env_begin', ),
@@ -119,16 +98,6 @@ def expand_if_block_rule(name, params, statements):
     return ('user_macro', name, params, BODY(*statements_prime))
 
 def expand_macro_call(macro, substitutions):
-    def rewrite_literal(x, prefix):
-        # XXX todo look at prefix, don't rewrite if it
-        # containts 'constant' or something like that
-        # (since that would indicate the literal L(x)
-        # does not refer to a variable)
-        l_x = L(x)
-        if l_x in substitutions:
-            return substitutions[l_x]
-        else:
-            return l_x
 
     @match_user_macro_body
     def rewrite_macro(name, params, statements):
@@ -149,11 +118,7 @@ def expand_macro_call(macro, substitutions):
 
         footer = [('env_end', )]
 
-        statements_prime = statements
-        # for expr in statements:
-        #     expr_prime = expr_map_literals(rewrite_literal, expr)
-        #     statements_prime.append(expr_prime)
-        statements_prime = header + statements_prime + footer
+        statements_prime = header + statements + footer
         params_prime = []
         return ('user_macro', name, params_prime, BODY(*statements_prime))
 
@@ -204,25 +169,29 @@ def rewrite_macro_until_fixed_point(macro):
         changed = False
         for transform_name in sorted(transforms):
             macro_out = transforms[transform_name](macro)
-            changed = changed or (macro_out != macro)
+            if macro_out != macro:
+                print '> applied transform "%s"' % transform_name
+                changed = True
             macro = macro_out
     return wrap_body_in_env_rule(macro)
 
 def compile_macro(macro_defns, macro_name):
     rewritten_macros = {}
     for name in macro_defns:
+        print '>>> rewriting macro "%s"' % name
         rewritten_macros[name] = rewrite_macro_until_fixed_point(macro_defns[name])
-        print '>>> rewrote macro "%s"' % name
-        expr_print(rewritten_macros[name])
+        print
+        # expr_print(rewritten_macros[name])
     
     expand_all_macro_calls_rule = make_expand_all_macro_calls_rule(rewritten_macros)
 
     macro = rewritten_macros[macro_name]
     changed = True
+    print '>>> inlining macro calls in main macro'
     while changed:
         macro_out = expand_all_macro_calls_rule(macro)
         changed = (macro_out != macro)
         macro = macro_out
-    print '>>> rewritten main macro:'
-    expr_print(macro)
+    # expr_print(macro)
+    print
     return macro

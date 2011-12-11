@@ -139,34 +139,6 @@ def _invoke_macro(machine, stack_man, macro_name, *args):
         raise KeyError('unknown builtin macro : %s' % repr(macro_name))
     _BUILT_IN_MACROS[macro_name](machine, stack_man, *args)
 
-def _get_builtin_macro_args(macro_name):
-    if macro_name not in _BUILT_IN_MACROS:
-        raise KeyError('unknown builtin macro : %s' % repr(macro_name))
-    args = inspect.getargspec(_BUILT_IN_MACROS[macro_name]).args
-    formal_args = {}
-    temp_args = {}
-    for i, name in enumerate(args):
-        if name in ('machine', 'stack_man', ):
-            pass
-        elif name.startswith('_tmp'):
-            temp_args[i] = name
-        else:
-            formal_args[i] = name
-    return (formal_args, temp_args)
-
-def _invoke_macro_auto_temps(machine, stack_man, macro_name, *args):
-    formal_args, temp_args = _get_builtin_macro_args(macro_name)
-    assert len(args) == len(formal_args)
-    n_macro_args = len(formal_args) + len(temp_args) + 2
-    macro_args = [None] * n_macro_args
-    for i in sorted(temp_args):
-        macro_args[i] = stack_man.allocate_local()
-    for j, i in enumerate(sorted(formal_args)):
-        macro_args[i] = args[j]
-    _invoke_macro(machine, stack_man, macro_name, *macro_args[2:])
-    for i in sorted(temp_args):
-        stack_man.free_local(macro_args[i])
-
 def BUILT_IN_MACRO(f):
     _BUILT_IN_MACROS[f.__name__] = f
     return f
@@ -350,7 +322,7 @@ def grow_stack(machine, stack_man, size):
     assert n >= 0
     if n == 0:
         return
-    offsets = stack_man.occupied_offsets()
+    offsets = stack_man.allocated_cells()
     for x in reversed(offsets):
         src = make_stack_address(x)
         dst = make_stack_address(x + n)
@@ -366,73 +338,9 @@ def shrink_stack(machine, stack_man, size):
     assert n >= 0
     if n == 0:
         return
-    offsets = stack_man.occupied_offsets()
+    offsets = stack_man.allocated_cells()
     for x in offsets:
         src = make_stack_address(x)
         dst = make_stack_address(x - n)
         _invoke_macro(machine, stack_man, 'move', src, dst)
     machine.stack_ptr -= n
-
-
-class StackManager:
-    def __init__(self):
-        self._occupied_offsets = set()
-
-    def _first_free_offset(self):
-        i = 0
-        while i in self._occupied_offsets:
-            i += 1
-        return i
-    
-    def allocate_local(self):
-        offset = self._first_free_offset()
-        self._occupied_offsets.add(offset)
-        return make_stack_address(offset)
-
-    def free_local(self, stack_address):
-        offset = match_stack_address(stack_address)
-        assert offset in self._occupied_offsets
-        self._occupied_offsets.remove(offset)
-    
-    def occupied_offsets(self):
-        return list(sorted(list(self._occupied_offsets)))
-
-def test():
-    print 'Test macro argument extraction:'
-    res = _get_builtin_macro_args('logical_and')
-    print str(res)
-
-    print 'Test {clear stack 5, clear stack 3}'
-    stack_man = StackManager()
-    dst_a = ('stack_address', 5)
-    dst_b = ('stack_address', 3)
-    machine = Machine(n_cells = 10)
-    _invoke_macro(machine, stack_man, 'clear', dst_a)
-    _invoke_macro(machine, stack_man, 'clear', dst_b)
-    machine.dump_code()
-
-    print 'Test {c = logical_or(a, b)} with manual temp management'
-    stack_man = StackManager()
-    var_a = ('stack_address', 0)
-    var_b = ('stack_address', 1)
-    var_c = ('stack_address', 2)
-    var_tmp0 = ('stack_address', 3)
-    var_tmp1 = ('stack_address', 4)
-    var_tmp2 = ('stack_address', 5)
-    machine = Machine(n_cells = 10)
-    _invoke_macro(machine, stack_man, 'logical_or', var_a, var_b, var_c, var_tmp0, var_tmp1, var_tmp2)
-    machine.dump_code()
-
-    print 'Test {c = logical_and(a, b)} with automatic temp management'
-    stack_man = StackManager()
-    var_a = stack_man.allocate_local()
-    var_b = stack_man.allocate_local()
-    var_c = stack_man.allocate_local()
-    machine = Machine(n_cells = 10)
-    _invoke_macro_auto_temps(machine, stack_man, 'logical_and', var_a, var_b, var_c)
-    machine.dump_code()
-
-
-
-if __name__ == '__main__':
-    test()

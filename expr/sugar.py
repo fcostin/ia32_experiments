@@ -54,7 +54,11 @@ def CHAR_CONSTANT(x):
     return ('int_constant', ord(x))
 
 def HIDDEN(x):
+    # n.b. this shouldn't be used by the user
     return ('hidden', x)
+
+def STACK_ADDRESS(x):
+    return ('stack_address', x)
 
 def WHILE(*args):
     def _capture_while_body(*body):

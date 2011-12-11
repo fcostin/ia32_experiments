@@ -26,6 +26,32 @@ DEF_MACRO('main')(
         IF('match')(
             PUT_STRING_CONSTANT(STRING_CONSTANT('DEC\n')),
         ),
+        CALL('is_equal', CHAR_CONSTANT('<'), 'c', 'match'), 
+        IF('match')(
+            PUT_STRING_CONSTANT(STRING_CONSTANT('LEFT\n')),
+        ),
+        CALL('is_equal', CHAR_CONSTANT('>'), 'c', 'match'), 
+        IF('match')(
+            PUT_STRING_CONSTANT(STRING_CONSTANT('RIGHT\n')),
+        ),
+        CALL('is_equal', CHAR_CONSTANT('['), 'c', 'match'), 
+        IF('match')(
+            GROW_STACK(INT_CONSTANT(1)),
+            PUT_STRING_CONSTANT(STRING_CONSTANT('BEGIN_LOOP\n')),
+        ),
+        CALL('is_equal', CHAR_CONSTANT(']'), 'c', 'match'), 
+        IF('match')(
+            SHRINK_STACK(INT_CONSTANT(1)),
+            PUT_STRING_CONSTANT(STRING_CONSTANT('END_LOOP\n')),
+        ),
+        CALL('is_equal', CHAR_CONSTANT(','), 'c', 'match'), 
+        IF('match')(
+            PUT_STRING_CONSTANT(STRING_CONSTANT('READ\n')),
+        ),
+        CALL('is_equal', CHAR_CONSTANT('.'), 'c', 'match'), 
+        IF('match')(
+            PUT_STRING_CONSTANT(STRING_CONSTANT('WRITE\n')),
+        ),
         CALL('update_input', 'c'),
     ),
     PUT_STRING_CONSTANT(STRING_CONSTANT('END\n')),
