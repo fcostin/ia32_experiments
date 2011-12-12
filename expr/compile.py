@@ -174,10 +174,7 @@ def compile_phase_2(built_in_macros, macro):
 
     def default_dispatch(tag, args):
         res = tuple([tag] + list(args))
-        print
-        print '> WARNING : IGNORING UNKNOWN STATEMENT %s' % str(res)
-        print
-        return res
+        raise ValueError('unknown expression : %s' % str(res))
 
     def dispatch(state, tag, args):
         if tag in tag_dispatch:
@@ -197,7 +194,7 @@ def compile_phase_2(built_in_macros, macro):
     
     statements = expression.get_macro_statements(macro)
     for expr in statements:
-        print '> translate %s' % str(expr)
+        # print '> translate %s' % str(expr)
         eval_expr(state, expr)
 
     print formatted_code(state.machine.code)

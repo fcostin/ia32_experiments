@@ -1,4 +1,5 @@
 from prelude import *
+import ia32
 
 # MATH DEFINITIONS
 
@@ -123,31 +124,32 @@ DEF_MACRO('main')(
     CALL('counter_init', 'name_counter_0', 'name_counter_1'),
     LOCAL('c'),
     CALL('update_input', 'c'),
-    PUT_STRING_CONSTANT(STRING_CONSTANT('BEGIN\n')),
+    PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.PROGRAM_START)),
     WHILE('c')(
         LOCAL('match'),
         CALL('is_equal', CHAR_CONSTANT('+'), 'c', 'match'), 
         IF('match')(
-            PUT_STRING_CONSTANT(STRING_CONSTANT('INC\n')),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_INC)),
         ),
         CALL('is_equal', CHAR_CONSTANT('-'), 'c', 'match'), 
         IF('match')(
-            PUT_STRING_CONSTANT(STRING_CONSTANT('DEC\n')),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_DEC)),
         ),
         CALL('is_equal', CHAR_CONSTANT('<'), 'c', 'match'), 
         IF('match')(
-            PUT_STRING_CONSTANT(STRING_CONSTANT('LEFT\n')),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_LEFT)),
         ),
         CALL('is_equal', CHAR_CONSTANT('>'), 'c', 'match'), 
         IF('match')(
-            PUT_STRING_CONSTANT(STRING_CONSTANT('RIGHT\n')),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_RIGHT)),
         ),
         CALL('is_equal', CHAR_CONSTANT('['), 'c', 'match'), 
         IF('match')(
-            PUT_STRING_CONSTANT(STRING_CONSTANT('BEGIN_LOOP\n')),
-            PUT_STRING_CONSTANT(STRING_CONSTANT('loop_index = ')),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.BEGIN_WHILE_1)),
             CALL('counter_print', 'name_counter_0', 'name_counter_1'),
-            PUT_STRING_CONSTANT(STRING_CONSTANT('\n')),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.BEGIN_WHILE_2)),
+            CALL('counter_print', 'name_counter_0', 'name_counter_1'),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.BEGIN_WHILE_3)),
             GROW_STACK(INT_CONSTANT(2)),
             COPY('name_counter_0', STACK_ADDRESS(-2)),
             COPY('name_counter_1', STACK_ADDRESS(-1)),
@@ -155,23 +157,24 @@ DEF_MACRO('main')(
         ),
         CALL('is_equal', CHAR_CONSTANT(']'), 'c', 'match'), 
         IF('match')(
-            PUT_STRING_CONSTANT(STRING_CONSTANT('END_LOOP\n')),
-            PUT_STRING_CONSTANT(STRING_CONSTANT('loop_index = ')),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.END_WHILE_1)),
             CALL('counter_print', STACK_ADDRESS(-2), STACK_ADDRESS(-1)),
-            PUT_STRING_CONSTANT(STRING_CONSTANT('\n')),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.END_WHILE_2)),
+            CALL('counter_print', STACK_ADDRESS(-2), STACK_ADDRESS(-1)),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.END_WHILE_3)),
             SHRINK_STACK(INT_CONSTANT(2)),
         ),
         CALL('is_equal', CHAR_CONSTANT(','), 'c', 'match'), 
         IF('match')(
-            PUT_STRING_CONSTANT(STRING_CONSTANT('READ\n')),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.READ_CHAR)),
         ),
         CALL('is_equal', CHAR_CONSTANT('.'), 'c', 'match'), 
         IF('match')(
-            PUT_STRING_CONSTANT(STRING_CONSTANT('WRITE\n')),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.WRITE_CHAR)),
         ),
         CALL('update_input', 'c'),
     ),
-    PUT_STRING_CONSTANT(STRING_CONSTANT('END\n')),
+    PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.PROGRAM_END)),
 )
 
 test_compile()

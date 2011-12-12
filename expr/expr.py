@@ -157,7 +157,7 @@ def make_expand_all_macro_calls_rule(user_macro_definitions):
 
     return expand_all_macro_calls_rule
 
-def rewrite_macro_until_fixed_point(macro):
+def rewrite_macro_until_fixed_point(macro, verbose):
     transforms = {
         'allocate_locals' : allocate_locals_rule,
         'expand_while_block' : expand_while_block_rule,
@@ -170,28 +170,28 @@ def rewrite_macro_until_fixed_point(macro):
         for transform_name in sorted(transforms):
             macro_out = transforms[transform_name](macro)
             if macro_out != macro:
-                print '> applied transform "%s"' % transform_name
+                if verbose:
+                    print '> applied transform "%s"' % transform_name
                 changed = True
             macro = macro_out
     return wrap_body_in_env_rule(macro)
 
-def compile_macro(macro_defns, macro_name):
+def compile_macro(macro_defns, macro_name, verbose = False):
     rewritten_macros = {}
     for name in macro_defns:
-        print '>>> rewriting macro "%s"' % name
-        rewritten_macros[name] = rewrite_macro_until_fixed_point(macro_defns[name])
-        print
-        # expr_print(rewritten_macros[name])
+        if verbose:
+            print '>>> rewriting macro "%s"' % name
+        rewritten_macros[name] = rewrite_macro_until_fixed_point(macro_defns[name],
+            verbose)
     
     expand_all_macro_calls_rule = make_expand_all_macro_calls_rule(rewritten_macros)
 
     macro = rewritten_macros[macro_name]
     changed = True
-    print '>>> inlining macro calls in main macro'
+    if verbose:
+        print '>>> inlining macro calls in main macro'
     while changed:
         macro_out = expand_all_macro_calls_rule(macro)
         changed = (macro_out != macro)
         macro = macro_out
-    # expr_print(macro)
-    print
     return macro
