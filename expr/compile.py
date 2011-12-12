@@ -95,10 +95,6 @@ class CompilerState:
         self.stack_man = stack_man
         self.machine = machine
 
-    def lookup_builtin_macro(self, name):
-        # XXX TODO
-        return 'XXX TODO'
-
 def compile_phase_2(built_in_macros, macro):
 
     n_cells = 30000

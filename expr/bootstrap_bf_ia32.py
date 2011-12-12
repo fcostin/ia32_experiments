@@ -1,4 +1,5 @@
 """
+python implementation of
 brainfuck -> gnu ia32 assembly compiler.
 """
 

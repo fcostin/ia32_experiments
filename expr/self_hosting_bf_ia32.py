@@ -1,3 +1,10 @@
+"""
+macro-language python DSL
+
+when run in python, compiles and then prints
+the brainfuck source of a brainfuck -> ia32 compiler
+"""
+
 from prelude import *
 import ia32
 
