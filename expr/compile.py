@@ -13,14 +13,18 @@ class BaseEnv:
         m = int_matcher.attempt_match(key)
         if m is not None:
             return ('int_constant', m['x'])
-        int_matcher = pm.match(L(('char_constant', pm.Star('x'))))
-        m = int_matcher.attempt_match(key)
+        char_matcher = pm.match(L(('char_constant', pm.Star('x'))))
+        m = char_matcher.attempt_match(key)
         if m is not None:
             return ('char_constant', m['x'])
-        int_matcher = pm.match(L(('string_constant', pm.Star('x'))))
-        m = int_matcher.attempt_match(key)
+        string_matcher = pm.match(L(('string_constant', pm.Star('x'))))
+        m = string_matcher.attempt_match(key)
         if m is not None:
             return ('string_constant', m['x'])
+        stack_address_matcher = pm.match(L(('stack_address', pm.Star('x'))))
+        m = stack_address_matcher.attempt_match(key)
+        if m is not None:
+            return ('stack_address', m['x'])
         raise KeyError(key)
 
 class Env:
@@ -200,7 +204,7 @@ def compile_phase_2(built_in_macros, macro):
 
 def formatted_code(code):
     code = ''.join(code)
-    line_width = 30
+    line_width = 70
     lines = []
     while len(code) > line_width:
         lines.append(code[:line_width])
