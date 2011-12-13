@@ -12,7 +12,7 @@ def die(s):
     sys.exit(1)
 
 def emit(s):
-    print s
+    print s,
 
 def compile(s):
     unique_labels = itertools.count()
@@ -21,16 +21,16 @@ def compile(s):
     def begin_while():
         i = unique_labels.next()
         label_stack.append(i)
-        return (BEGIN_WHILE_1 + ('end_%d' % i) +
-            BEGIN_WHILE_2 + ('begin_%d' % i) +
+        return (BEGIN_WHILE_1 + ('%04x' % i) +
+            BEGIN_WHILE_2 + ('%04x' % i) +
             BEGIN_WHILE_3)
 
     def end_while():
         if not label_stack:
             die('error: encountered "]" without matching "["')
         i = label_stack.pop()
-        return (END_WHILE_1 + ('begin_%d' % i) +
-            END_WHILE_2 + ('end_%d' % i) +
+        return (END_WHILE_1 + ('%04x' % i) +
+            END_WHILE_2 + ('%04x' % i) +
             END_WHILE_3)
 
     code_generator = {

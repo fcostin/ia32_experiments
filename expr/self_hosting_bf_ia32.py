@@ -6,11 +6,27 @@ the brainfuck source of a brainfuck -> ia32 compiler
 """
 
 from prelude import *
+
+# ====================
+# A BRAINFUCK COMPILER
+# ====================
+#   featuring:
+#       *   support for up to 0x10000 loops
+#       *   run-length encoding for repeated
+#           strings of +,-,<,> instructions
+
+
+# ================================
+# IMPORT ASSEMBLY STRING CONSTANTS
+# ================================
 import ia32
 
-# MATH DEFINITIONS
+# ===========
+# MATH MACROS
+# ===========
 
 # compute quotient of x div y
+#   -- xxx todo make this less awful
 DEF_MACRO('div_q', 'x', 'y', 'q')(
     LOCAL('r'),
     CLEAR('q'),
@@ -59,22 +75,9 @@ DEF_MACRO('div', 'x', 'y', 'q', 'r')(
     CALL('div_r', 'x', 'y', 'q', 'r'),
 )
 
-# COUNTER DEFINITIONS
-
-DEF_MACRO('counter_init', 'x0', 'x1')(
-   CLEAR('x0'),
-   CLEAR('x1'),
-)
-
-DEF_MACRO('counter_inc', 'x0', 'x1')(
-    CONSTANT_ADD(INT_CONSTANT(1), 'x0'),
-    LOCAL('test'),
-    LOGICAL_NOT('x0', 'test'),
-    IF('test')(
-        CLEAR('x0'),
-        CONSTANT_ADD(INT_CONSTANT(1), 'x1'),
-    )
-)
+# =============
+# OUTPUT MACROS
+# =============
 
 # print hex digit x, 0 <= x < 16
 DEF_MACRO('print_hex_digit', 'x')(
@@ -106,17 +109,94 @@ DEF_MACRO('print_hex_byte', 'x')(
     CALL('print_hex_digit', 'r'),
 )
 
+# ==============
+# COUNTER MACROS
+# ==============
+# these are used to manage the 2-byte counter
+# used to uniquely name labels
+
+DEF_MACRO('counter_init', 'x0', 'x1')(
+   CLEAR('x0'),
+   CLEAR('x1'),
+)
+
+DEF_MACRO('counter_inc', 'x0', 'x1')(
+    CONSTANT_ADD(INT_CONSTANT(1), 'x0'),
+    LOCAL('test'),
+    LOGICAL_NOT('x0', 'test'),
+    IF('test')(
+        CLEAR('x0'),
+        CONSTANT_ADD(INT_CONSTANT(1), 'x1'),
+    )
+)
+
 DEF_MACRO('counter_print', 'x0', 'x1')(
     CALL('print_hex_byte', 'x1'),
     CALL('print_hex_byte', 'x0'),
 )
 
-# INPUT DEFINITIONS
+# ============
+# INPUT MACROS
+# ============
+# run-length encoding of input
+# known bugs:
+#   1 byte used for the counter n with no guard against overflow
 
-DEF_MACRO('update_input', 'c')(
+DEF_MACRO('input_init', 'n', 'c', 'c_next')(
     CLEAR('c'),
-    GET_CHAR('c'),
+    CLEAR('n'),
+    CLEAR('c_next'),
+    GET_CHAR('c_next'),
+    CALL('input_update', 'n', 'c', 'c_next'),
 )
+
+DEF_MACRO('input_update', 'n', 'c', 'c_next')(
+    # while n is zero or c_next == c, accumulate n
+    LOCAL('n_is_zero'),
+    LOGICAL_NOT('n', 'n_is_zero'),
+    LOCAL('not_match'),
+    COPY('c_next', 'not_match'),
+    STACK_SUB('c', 'not_match'),
+    LOCAL('match'),
+    LOGICAL_NOT('not_match', 'match'),
+    LOCAL('merge_ok'),
+    LOGICAL_OR('n_is_zero', 'match', 'merge_ok'),
+    WHILE('merge_ok')(
+        COPY('c_next', 'c'),
+        CONSTANT_ADD(INT_CONSTANT(1), 'n'),
+        CLEAR('merge_ok'),
+        # but stop if c_next is zero (EOF)
+        IF('c_next')(
+            CLEAR('c_next'),
+            GET_CHAR('c_next'),
+            COPY('c_next', 'not_match'),
+            STACK_SUB('c', 'not_match'),
+            # we know n isnt zero any more!
+            LOGICAL_NOT('not_match', 'merge_ok'),
+        ),
+    ),
+)
+
+DEF_MACRO('input_has_next', 'n', 'c', 'c_next', 'result_has_next')(
+    COPY('c', 'result_has_next'),
+)
+
+DEF_MACRO('input_peek_char', 'n', 'c', 'c_next', 'result_c')(
+    COPY('c', 'result_c'),
+)
+
+DEF_MACRO('input_consume_char', 'n', 'c', 'c_next')(
+    CONSTANT_SUB(INT_CONSTANT(1), 'n'),
+)
+
+DEF_MACRO('input_consume_run', 'n', 'c', 'c_next', 'result_n')(
+    COPY('n', 'result_n'),
+    CLEAR('n'),
+)
+
+# ===========
+# MISC MACROS
+# ===========
 
 DEF_MACRO('is_equal', 'const', 'src', 'dst')(
     LOCAL('temp'),
@@ -125,33 +205,69 @@ DEF_MACRO('is_equal', 'const', 'src', 'dst')(
     LOGICAL_NOT('temp', 'dst'),
 )
 
+# ===================
+# MAIN COMPILER MACRO
+# ===================
+
 DEF_MACRO('main')(
+    # initialise name counter state
     LOCAL('name_counter_0'),
     LOCAL('name_counter_1'),
     CALL('counter_init', 'name_counter_0', 'name_counter_1'),
-    LOCAL('c'),
-    CALL('update_input', 'c'),
+    # initialise input state
+    LOCAL('input0'),
+    LOCAL('input1'),
+    LOCAL('input2'),
+    CALL('input_init', 'input0', 'input1', 'input2'),
+    LOCAL('input_ok'),
+    CALL('input_has_next', 'input0', 'input1', 'input2', 'input_ok'),
     PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.PROGRAM_START)),
-    WHILE('c')(
-        LOCAL('match'),
+    LOCAL('match'),
+    LOCAL('no_match_found'),
+    LOCAL('c'),
+    WHILE('input_ok')(
+        CLEAR('no_match_found'),
+        CONSTANT_ADD(INT_CONSTANT(1), 'no_match_found'),
+        CALL('input_peek_char', 'input0', 'input1', 'input2', 'c'),
         CALL('is_equal', CHAR_CONSTANT('+'), 'c', 'match'), 
         IF('match')(
-            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_INC)),
+            LOCAL('run_length'),
+            CALL('input_consume_run', 'input0', 'input1', 'input2', 'run_length'),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_INC_1)),
+            CALL('print_hex_byte', 'run_length'),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_INC_2)),
+            CLEAR('no_match_found'),
         ),
         CALL('is_equal', CHAR_CONSTANT('-'), 'c', 'match'), 
         IF('match')(
-            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_DEC)),
+            LOCAL('run_length'),
+            CALL('input_consume_run', 'input0', 'input1', 'input2', 'run_length'),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_DEC_1)),
+            CALL('print_hex_byte', 'run_length'),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_DEC_2)),
+            CLEAR('no_match_found'),
         ),
         CALL('is_equal', CHAR_CONSTANT('<'), 'c', 'match'), 
         IF('match')(
-            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_LEFT)),
+            LOCAL('run_length'),
+            CALL('input_consume_run', 'input0', 'input1', 'input2', 'run_length'),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_LEFT_1)),
+            CALL('print_hex_byte', 'run_length'),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_LEFT_2)),
+            CLEAR('no_match_found'),
         ),
         CALL('is_equal', CHAR_CONSTANT('>'), 'c', 'match'), 
         IF('match')(
-            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_RIGHT)),
+            LOCAL('run_length'),
+            CALL('input_consume_run', 'input0', 'input1', 'input2', 'run_length'),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_RIGHT_1)),
+            CALL('print_hex_byte', 'run_length'),
+            PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.DP_RIGHT_2)),
+            CLEAR('no_match_found'),
         ),
         CALL('is_equal', CHAR_CONSTANT('['), 'c', 'match'), 
         IF('match')(
+            CALL('input_consume_char', 'input0', 'input1', 'input2'),
             PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.BEGIN_WHILE_1)),
             CALL('counter_print', 'name_counter_0', 'name_counter_1'),
             PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.BEGIN_WHILE_2)),
@@ -161,27 +277,40 @@ DEF_MACRO('main')(
             COPY('name_counter_0', STACK_ADDRESS(-2)),
             COPY('name_counter_1', STACK_ADDRESS(-1)),
             CALL('counter_inc', 'name_counter_0', 'name_counter_1'),
+            CLEAR('no_match_found'),
         ),
         CALL('is_equal', CHAR_CONSTANT(']'), 'c', 'match'), 
         IF('match')(
+            CALL('input_consume_char', 'input0', 'input1', 'input2'),
             PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.END_WHILE_1)),
             CALL('counter_print', STACK_ADDRESS(-2), STACK_ADDRESS(-1)),
             PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.END_WHILE_2)),
             CALL('counter_print', STACK_ADDRESS(-2), STACK_ADDRESS(-1)),
             PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.END_WHILE_3)),
             SHRINK_STACK(INT_CONSTANT(2)),
+            CLEAR('no_match_found'),
         ),
         CALL('is_equal', CHAR_CONSTANT(','), 'c', 'match'), 
         IF('match')(
+            CALL('input_consume_char', 'input0', 'input1', 'input2'),
             PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.READ_CHAR)),
+            CLEAR('no_match_found'),
         ),
         CALL('is_equal', CHAR_CONSTANT('.'), 'c', 'match'), 
         IF('match')(
+            CALL('input_consume_char', 'input0', 'input1', 'input2'),
             PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.WRITE_CHAR)),
+            CLEAR('no_match_found'),
         ),
-        CALL('update_input', 'c'),
+        IF('no_match_found')(
+            # ignore unmatchable input characters
+            CALL('input_consume_char', 'input0', 'input1', 'input2'),
+        ),
+        CALL('input_update', 'input0', 'input1', 'input2'),
+        CALL('input_has_next', 'input0', 'input1', 'input2', 'input_ok'),
     ),
     PUT_STRING_CONSTANT(STRING_CONSTANT(ia32.PROGRAM_END)),
 )
 
+# trigger compiler ...
 test_compile()

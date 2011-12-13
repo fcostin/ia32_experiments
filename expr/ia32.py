@@ -75,3 +75,22 @@ PROGRAM_END = r"""
     movl	$0,%ebx
     int		$0x80
 """
+
+# a few extended versions for run-length encoded output
+
+DP_RIGHT_1 = r"""
+    addl        $0x"""
+DP_RIGHT_2 = """, %eax"""
+
+DP_LEFT_1 = r"""
+    subl        $0x"""
+DP_LEFT_2 = """, %eax"""
+
+DP_INC_1 = r"""
+    addb	$0x"""
+DP_INC_2 = """, 0(%esp, %eax, 1)"""
+
+DP_DEC_1 = r"""
+    subb	$0x"""
+DP_DEC_2 = """, 0(%esp, %eax, 1)"""
+
